@@ -14,21 +14,33 @@ namespace Arro.PieMenuSearch
     [Plugin]
     public class PieMenuPatch
     {
+        public static class TinyUIFixForTS3Integration
+        {
+            public delegate float FloatGetter();
+
+            public static FloatGetter getUIScale = () => 1f;
+        }
+
         public Window mPieWindow;
+
         [ReplaceMethod(typeof(PieMenu), "Load")]
         public static void Load()
         {
             ResourceKey resKey = ResourceKey.CreateUILayoutKey("HUDPieMenu", 0U);
             PieMenu.sLayout = UIManager.LoadLayoutAndAddToWindow(resKey, UICategory.PieMenu);
+            PieMenu.sLayout = UIManager.LoadLayoutAndAddToWindow(ResourceKey.CreateUILayoutKey("PieMenuSearchBar", 0U),
+                UICategory.PieMenu);
             PieMenu.sInstance.mPositionStack = new Vector2[1000];
         }
+
+        public TextEdit searchTextEdit;
 
         [ReplaceMethod(typeof(PieMenu), "Begin")]
         public void Begin(MenuTree tree, Vector2 location)
         {
             var instance = (PieMenu)(this as object);
-            PieMenu.sLayout = UIManager.LoadLayoutAndAddToWindow(ResourceKey.CreateUILayoutKey("PieMenuSearchBar", 0U), UICategory.PieMenu);
             mPieWindow = UIManager.GetMainWindow();
+            searchTextEdit = mPieWindow.GetChildByID(185745581U, true) as TextEdit;
             instance.mTriggerHandle =
                 instance.mContainer.AddTriggerHook("piemenu", TriggerActivationMode.kPermanent, 1);
             instance.mContainer.TriggerDown += instance.OnTriggerDown;
@@ -37,7 +49,6 @@ namespace Arro.PieMenuSearch
             instance.SetupPieMenuButtons(instance.mCurrent, location, false);
             instance.mCurrentButtonSelected = -1;
             instance.mContainer.Visible = true;
-            TextEdit searchTextEdit = mPieWindow.GetChildByID(185745581U, true) as TextEdit;
             if (searchTextEdit != null)
             {
                 searchTextEdit.Caption = "";
@@ -56,7 +67,6 @@ namespace Arro.PieMenuSearch
         {
             var instance = (PieMenu)(this as object);
             instance.mContainer.RemoveTriggerHook(instance.mTriggerHandle);
-            TextEdit searchTextEdit = mPieWindow.GetChildByID(185745581U, true) as TextEdit;
             if (searchTextEdit != null)
             {
                 searchTextEdit.TextChange -= OnTextChange;
@@ -89,6 +99,7 @@ namespace Arro.PieMenuSearch
             {
                 FilterMenuItems(instance, query);
             }
+            
 
             SearchTextEditAutoSize();
         }
@@ -98,7 +109,6 @@ namespace Arro.PieMenuSearch
             try
             {
                 var instance = (PieMenu)(this as object);
-                TextEdit searchTextEdit = mPieWindow.GetChildByID(185745581U, true) as TextEdit;
                 UIManager.SetFocus(InputContext.kICKeyboard, searchTextEdit);
                 if (searchTextEdit != null && instance.mItemButtons != null && instance.mItemButtons.Length > 0)
                 {
@@ -109,15 +119,15 @@ namespace Arro.PieMenuSearch
                     float searchWidth = searchTextEdit.Area.Width;
                     searchTextEdit.Position = new Vector2(
                         centerX - (searchWidth * 0.5f),
-                        screenPosition.y - 90f
+                        screenPosition.y - 95f * TinyUIFixForTS3Integration.getUIScale()
                     );
                 }
 
                 Rect currentArea = searchTextEdit.Area;
                 Vector2 topLeft = currentArea.TopLeft;
                 int characterCount = searchTextEdit.Caption.Length;
-                float width = 22f * characterCount;
-                float height = 26f;
+                float width = (22f * characterCount) * TinyUIFixForTS3Integration.getUIScale();
+                float height = 26f * TinyUIFixForTS3Integration.getUIScale();
 
                 searchTextEdit.Area = new Rect(
                     topLeft.x,
@@ -129,9 +139,7 @@ namespace Arro.PieMenuSearch
             catch (Exception ex)
             {
                 ExceptionHandler.HandleException(ex, MethodBase.GetCurrentMethod().Name);
-                
             }
-            
         }
 
         private MenuItem mFilteredRoot;
@@ -151,7 +159,7 @@ namespace Arro.PieMenuSearch
             var newRoot = new MenuItem { mTree = pieMenu.mTree };
             var normalizedQuery = RemoveDiacritics(query.ToLowerInvariant());
             var queryWords = normalizedQuery.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            
+
             var tempClonesWithParents = new List<MenuEntry>();
 
             foreach (MenuEntry entry in allEntries)
@@ -192,7 +200,7 @@ namespace Arro.PieMenuSearch
                     });
                 }
             }
-            
+
             var nameGroups = new Dictionary<string, List<MenuEntry>>();
             foreach (MenuEntry entry in tempClonesWithParents)
             {
@@ -204,7 +212,7 @@ namespace Arro.PieMenuSearch
 
                 nameGroups[baseName].Add(entry);
             }
-            
+
             foreach (string key in nameGroups.Keys)
             {
                 List<MenuEntry> group = nameGroups[key];
@@ -220,7 +228,7 @@ namespace Arro.PieMenuSearch
                     }
                 }
             }
-            
+
             foreach (MenuEntry entry in tempClonesWithParents)
             {
                 newRoot.AddChild(entry.Item);
@@ -232,7 +240,6 @@ namespace Arro.PieMenuSearch
                 Sims3.Gameplay.UI.PieMenu.ShowGreyedOutTooltip(
                     Localization.LocalizeString("Gameplay/Abstracts/GameObject:NoInteractions", new object[0]),
                     UIManager.GetCursorPosition());
-                TextEdit searchTextEdit = mPieWindow.GetChildByID(185745581U, true) as TextEdit;
                 searchTextEdit.TextChange -= OnTextChange;
                 searchTextEdit.Caption = searchTextEdit.Caption.Substring(0, searchTextEdit.Caption.Length - 1);
                 SearchTextEditAutoSize();
