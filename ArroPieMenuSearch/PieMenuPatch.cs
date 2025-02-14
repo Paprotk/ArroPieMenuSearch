@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Reflection;
 using System.Text;
 using MonoPatcherLib;
 using Sims3.Gameplay.Utilities;
@@ -10,12 +11,14 @@ using Sims3.UI.Hud;
 
 namespace Arro.PieMenuSearch
 {
+    [Plugin]
     public class PieMenuPatch
     {
+        public Window mPieWindow;
         [ReplaceMethod(typeof(PieMenu), "Load")]
         public static void Load()
         {
-            ResourceKey resKey = ResourceKey.CreateUILayoutKey("HUDPieMenuPatch", 0U);
+            ResourceKey resKey = ResourceKey.CreateUILayoutKey("HUDPieMenu", 0U);
             PieMenu.sLayout = UIManager.LoadLayoutAndAddToWindow(resKey, UICategory.PieMenu);
             PieMenu.sInstance.mPositionStack = new Vector2[1000];
         }
@@ -24,6 +27,8 @@ namespace Arro.PieMenuSearch
         public void Begin(MenuTree tree, Vector2 location)
         {
             var instance = (PieMenu)(this as object);
+            PieMenu.sLayout = UIManager.LoadLayoutAndAddToWindow(ResourceKey.CreateUILayoutKey("PieMenuSearchBar", 0U), UICategory.PieMenu);
+            mPieWindow = UIManager.GetMainWindow();
             instance.mTriggerHandle =
                 instance.mContainer.AddTriggerHook("piemenu", TriggerActivationMode.kPermanent, 1);
             instance.mContainer.TriggerDown += instance.OnTriggerDown;
@@ -32,7 +37,7 @@ namespace Arro.PieMenuSearch
             instance.SetupPieMenuButtons(instance.mCurrent, location, false);
             instance.mCurrentButtonSelected = -1;
             instance.mContainer.Visible = true;
-            TextEdit searchTextEdit = instance.GetChildByID(185745581U, true) as TextEdit;
+            TextEdit searchTextEdit = mPieWindow.GetChildByID(185745581U, true) as TextEdit;
             if (searchTextEdit != null)
             {
                 searchTextEdit.Caption = "";
@@ -51,7 +56,7 @@ namespace Arro.PieMenuSearch
         {
             var instance = (PieMenu)(this as object);
             instance.mContainer.RemoveTriggerHook(instance.mTriggerHandle);
-            TextEdit searchTextEdit = instance.GetChildByID(185745581U, true) as TextEdit;
+            TextEdit searchTextEdit = mPieWindow.GetChildByID(185745581U, true) as TextEdit;
             if (searchTextEdit != null)
             {
                 searchTextEdit.TextChange -= OnTextChange;
@@ -90,34 +95,43 @@ namespace Arro.PieMenuSearch
 
         private void SearchTextEditAutoSize()
         {
-            var instance = (PieMenu)(this as object);
-            TextEdit searchTextEdit = instance.GetChildByID(185745581U, true) as TextEdit;
-            UIManager.SetFocus(InputContext.kICKeyboard, searchTextEdit);
-            if (searchTextEdit != null && instance.mItemButtons != null && instance.mItemButtons.Length > 0)
+            try
             {
-                Window firstButton = instance.mItemButtons[0];
-                Vector2 position = firstButton.Area.TopLeft;
-                Vector2 screenPosition = instance.mContainer.WindowToScreen(position);
-                float centerX = screenPosition.x + (firstButton.Area.Width * 0.5f) - 2f;
-                float searchWidth = searchTextEdit.Area.Width;
-                searchTextEdit.Position = new Vector2(
-                    centerX - (searchWidth * 0.5f),
-                    screenPosition.y - 20f
+                var instance = (PieMenu)(this as object);
+                TextEdit searchTextEdit = mPieWindow.GetChildByID(185745581U, true) as TextEdit;
+                UIManager.SetFocus(InputContext.kICKeyboard, searchTextEdit);
+                if (searchTextEdit != null && instance.mItemButtons != null && instance.mItemButtons.Length > 0)
+                {
+                    Window firstButton = instance.mItemButtons[0];
+                    Vector2 position = firstButton.Area.TopLeft;
+                    Vector2 screenPosition = instance.mContainer.WindowToScreen(position);
+                    float centerX = screenPosition.x + (firstButton.Area.Width * 0.5f) - 2f;
+                    float searchWidth = searchTextEdit.Area.Width;
+                    searchTextEdit.Position = new Vector2(
+                        centerX - (searchWidth * 0.5f),
+                        screenPosition.y - 90f
+                    );
+                }
+
+                Rect currentArea = searchTextEdit.Area;
+                Vector2 topLeft = currentArea.TopLeft;
+                int characterCount = searchTextEdit.Caption.Length;
+                float width = 22f * characterCount;
+                float height = 26f;
+
+                searchTextEdit.Area = new Rect(
+                    topLeft.x,
+                    topLeft.y,
+                    topLeft.x + width,
+                    topLeft.y + height
                 );
             }
-
-            Rect currentArea = searchTextEdit.Area;
-            Vector2 topLeft = currentArea.TopLeft;
-            int characterCount = searchTextEdit.Caption.Length;
-            float width = 13f * characterCount;
-            float height = 17f;
-
-            searchTextEdit.Area = new Rect(
-                topLeft.x,
-                topLeft.y,
-                topLeft.x + width,
-                topLeft.y + height
-            );
+            catch (Exception ex)
+            {
+                ExceptionHandler.HandleException(ex, MethodBase.GetCurrentMethod().Name);
+                
+            }
+            
         }
 
         private MenuItem mFilteredRoot;
@@ -218,7 +232,7 @@ namespace Arro.PieMenuSearch
                 Sims3.Gameplay.UI.PieMenu.ShowGreyedOutTooltip(
                     Localization.LocalizeString("Gameplay/Abstracts/GameObject:NoInteractions", new object[0]),
                     UIManager.GetCursorPosition());
-                TextEdit searchTextEdit = instance.GetChildByID(185745581U, true) as TextEdit;
+                TextEdit searchTextEdit = mPieWindow.GetChildByID(185745581U, true) as TextEdit;
                 searchTextEdit.TextChange -= OnTextChange;
                 searchTextEdit.Caption = searchTextEdit.Caption.Substring(0, searchTextEdit.Caption.Length - 1);
                 SearchTextEditAutoSize();

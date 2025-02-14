@@ -45,7 +45,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ExceptionHandler.cs" />
-    <Compile Include="Main.cs" />
     <Compile Include="PieMenuPatch.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
