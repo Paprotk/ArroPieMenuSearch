@@ -14,6 +14,9 @@ namespace Arro.PieMenuSearch
     [Plugin]
     public class PieMenuPatch
     {
+        #pragma warning disable CS0649
+        [Tunable] private static int SearchType;
+        #pragma warning restore CS0649
         public static class TinyUIFixForTS3Integration
         {
             public delegate float FloatGetter();
@@ -28,19 +31,43 @@ namespace Arro.PieMenuSearch
         {
             ResourceKey resKey = ResourceKey.CreateUILayoutKey("HUDPieMenu", 0U);
             PieMenu.sLayout = UIManager.LoadLayoutAndAddToWindow(resKey, UICategory.PieMenu);
-            PieMenu.sLayout = UIManager.LoadLayoutAndAddToWindow(ResourceKey.CreateUILayoutKey("PieMenuSearchBar", 0U),
-                UICategory.PieMenu);
+            if (SearchType == 1)
+            {
+                PieMenu.sLayout = UIManager.LoadLayoutAndAddToWindow(ResourceKey.CreateUILayoutKey("PieMenuSearchBar", 0U),
+                    UICategory.PieMenu);
+            }
+            else
+            {
+                PieMenu.sLayout = UIManager.LoadLayoutAndAddToWindow(
+                    ResourceKey.CreateUILayoutKey("PieMenuSearchButton", 0U),
+                    UICategory.PieMenu);
+                Window mainWindow = UIManager.GetMainWindow();
+                Button searchButton = mainWindow.GetChildByID(185745581U, true) as Button;
+                if (searchButton != null)
+                {
+                    searchButton.Visible = false;
+                }
+            }
+
             PieMenu.sInstance.mPositionStack = new Vector2[1000];
         }
 
         public TextEdit searchTextEdit;
+        public Button searchButton;
 
         [ReplaceMethod(typeof(PieMenu), "Begin")]
         public void Begin(MenuTree tree, Vector2 location)
         {
             var instance = (PieMenu)(this as object);
             mPieWindow = UIManager.GetMainWindow();
-            searchTextEdit = mPieWindow.GetChildByID(185745581U, true) as TextEdit;
+            if (SearchType == 1)
+            {
+                searchTextEdit = mPieWindow.GetChildByID(185745581U, true) as TextEdit;
+            }
+            else
+            {
+                searchButton = (mPieWindow.GetChildByID(185745581U, true) as Button);
+            }
             instance.mTriggerHandle =
                 instance.mContainer.AddTriggerHook("piemenu", TriggerActivationMode.kPermanent, 1);
             instance.mContainer.TriggerDown += instance.OnTriggerDown;
@@ -58,6 +85,12 @@ namespace Arro.PieMenuSearch
                 UIManager.SetFocus(InputContext.kICKeyboard, searchTextEdit);
             }
 
+            if (searchButton != null)
+            {
+                searchButton.Click += OnClickShowSearchDialog;
+                searchButton.Visible = true;
+            }
+
             Audio.StartSound("ui_piemenu_primary");
             UIManager.PushModal(instance);
         }
@@ -71,6 +104,13 @@ namespace Arro.PieMenuSearch
             {
                 searchTextEdit.TextChange -= OnTextChange;
                 searchTextEdit.Visible = false;
+            }
+
+            if (searchButton != null)
+            {
+                searchButton.Click -= OnClickShowSearchDialog;
+                searchButton.Visible = false;
+                sLastSearchQuery = string.Empty;
             }
 
             instance.mContainer.TriggerDown -= instance.OnTriggerDown;
@@ -103,38 +143,84 @@ namespace Arro.PieMenuSearch
 
             SearchTextEditAutoSize();
         }
+        
+        public void OnClickShowSearchDialog(WindowBase sender, UIButtonClickEventArgs args)
+        {
+            try
+            {
+                var pieMenu = (PieMenu)(this as object);
+                Simulator.AddObject(new OneShotFunctionTask(() => { ShowSearchDialog(pieMenu); },
+                    StopWatch.TickStyles.Seconds, 0.1f));
+            }
+            catch (Exception ex)
+            {
+                ExceptionHandler.HandleException(ex, "OnClickShowSearchDialog");
+            }
+        }
+        private static string sLastSearchQuery = string.Empty;
+        private void ShowSearchDialog(PieMenu pieMenu)
+        {
+            try
+            {
+                string result = StringInputDialog.Show("Search Interactions", "Enter search term:", sLastSearchQuery, false);
+                if (!string.IsNullOrEmpty(result))
+                {
+                    sLastSearchQuery = result;
+                    FilterMenuItems(pieMenu, result);
+                }
+            }
+            catch (Exception ex)
+            {
+                ExceptionHandler.HandleException(ex, "ShowSearchDialog");
+            }
+        }
 
         private void SearchTextEditAutoSize()
         {
             try
             {
                 var instance = (PieMenu)(this as object);
-                UIManager.SetFocus(InputContext.kICKeyboard, searchTextEdit);
-                if (searchTextEdit != null && instance.mItemButtons != null && instance.mItemButtons.Length > 0)
+                if (searchTextEdit != null)
+                {
+                    UIManager.SetFocus(InputContext.kICKeyboard, searchTextEdit);
+                    if (instance.mItemButtons != null && instance.mItemButtons.Length > 0)
+                    {
+                        Window firstButton = instance.mItemButtons[0];
+                        Vector2 position = firstButton.Area.TopLeft;
+                        Vector2 screenPosition = instance.mContainer.WindowToScreen(position);
+                        float centerX = screenPosition.x + (firstButton.Area.Width * 0.5f) - 2f;
+                        float searchWidth = searchTextEdit.Area.Width;
+                        searchTextEdit.Position = new Vector2(
+                            centerX - (searchWidth * 0.5f),
+                            screenPosition.y - 95f * TinyUIFixForTS3Integration.getUIScale()
+                        );
+                    }
+
+                    Rect currentArea = searchTextEdit.Area;
+                    Vector2 topLeft = currentArea.TopLeft;
+                    int characterCount = searchTextEdit.Caption.Length;
+                    float width = (22f * characterCount) * TinyUIFixForTS3Integration.getUIScale();
+                    float height = 26f * TinyUIFixForTS3Integration.getUIScale();
+
+                    searchTextEdit.Area = new Rect(
+                        topLeft.x,
+                        topLeft.y,
+                        topLeft.x + width,
+                        topLeft.y + height
+                    );
+                }
+                else
                 {
                     Window firstButton = instance.mItemButtons[0];
                     Vector2 position = firstButton.Area.TopLeft;
                     Vector2 screenPosition = instance.mContainer.WindowToScreen(position);
-                    float centerX = screenPosition.x + (firstButton.Area.Width * 0.5f) - 2f;
-                    float searchWidth = searchTextEdit.Area.Width;
-                    searchTextEdit.Position = new Vector2(
-                        centerX - (searchWidth * 0.5f),
-                        screenPosition.y - 95f * TinyUIFixForTS3Integration.getUIScale()
+                    float firstButtonCenterX = screenPosition.x + (firstButton.Area.Width * 0.5f);
+                    searchButton.Position = new Vector2(
+                        firstButtonCenterX - (searchButton.Area.Width * 0.5f),
+                        screenPosition.y - 35f * TinyUIFixForTS3Integration.getUIScale()
                     );
+
                 }
-
-                Rect currentArea = searchTextEdit.Area;
-                Vector2 topLeft = currentArea.TopLeft;
-                int characterCount = searchTextEdit.Caption.Length;
-                float width = (22f * characterCount) * TinyUIFixForTS3Integration.getUIScale();
-                float height = 26f * TinyUIFixForTS3Integration.getUIScale();
-
-                searchTextEdit.Area = new Rect(
-                    topLeft.x,
-                    topLeft.y,
-                    topLeft.x + width,
-                    topLeft.y + height
-                );
             }
             catch (Exception ex)
             {
@@ -149,7 +235,6 @@ namespace Arro.PieMenuSearch
             public MenuItem Item;
             public string ParentName;
         }
-
         private void FilterMenuItems(PieMenu pieMenu, string query, bool silent = false)
         {
             mFilteredRoot = null;
@@ -237,25 +322,32 @@ namespace Arro.PieMenuSearch
             if (newRoot.ChildCount == 0)
             {
                 var instance = (PieMenu)(this as object);
-                Sims3.Gameplay.UI.PieMenu.ShowGreyedOutTooltip(
-                    Localization.LocalizeString("Gameplay/Abstracts/GameObject:NoInteractions", new object[0]),
-                    UIManager.GetCursorPosition());
-                searchTextEdit.TextChange -= OnTextChange;
-                searchTextEdit.Caption = searchTextEdit.Caption.Substring(0, searchTextEdit.Caption.Length - 1);
-                SearchTextEditAutoSize();
-                searchTextEdit.TextChange += OnTextChange;
-                string newQuery = searchTextEdit.Caption;
-                if (!string.IsNullOrEmpty(newQuery))
+                if (searchTextEdit != null)
                 {
-                    FilterMenuItems(instance, newQuery, silent: true);
+                    Sims3.Gameplay.UI.PieMenu.ShowGreyedOutTooltip(
+                        Localization.LocalizeString("Gameplay/Abstracts/GameObject:NoInteractions", new object[0]),
+                        UIManager.GetCursorPosition());
+                    searchTextEdit.TextChange -= OnTextChange;
+                    searchTextEdit.Caption = searchTextEdit.Caption.Substring(0, searchTextEdit.Caption.Length - 1);
+                    SearchTextEditAutoSize();
+                    searchTextEdit.TextChange += OnTextChange;
+                    string newQuery = searchTextEdit.Caption;
+                    if (!string.IsNullOrEmpty(newQuery))
+                    {
+                        FilterMenuItems(instance, newQuery, silent: true);
+                    }
+                    else
+                    {
+                        instance.mCurrent = instance.ValidateMenuStructure(instance.mTree.mRoot);
+                        instance.SetupPieMenuButtons(instance.mCurrent, instance.mPositionStack[instance.mPositionStackPtr],
+                            false);
+                    }
                 }
                 else
                 {
-                    instance.mCurrent = instance.ValidateMenuStructure(instance.mTree.mRoot);
-                    instance.SetupPieMenuButtons(instance.mCurrent, instance.mPositionStack[instance.mPositionStackPtr],
-                        false);
+                    SimpleMessageDialog.Show("Error", $"No results found for '{query}'");
+                    return;
                 }
-
                 Audio.StartSound("ui_error");
                 return;
             }
@@ -457,7 +549,7 @@ namespace Arro.PieMenuSearch
                         }
 
                         Vector2 currentOrigin = instance.mPositionStack[instance.mPositionStackPtr];
-                        float headSize = 128f;
+                        float headSize = 128f * TinyUIFixForTS3Integration.getUIScale();
                         Vector2 topLeft = new Vector2(currentOrigin.x - headSize, currentOrigin.y - headSize);
                         Vector2 bottomRight = new Vector2(currentOrigin.x + headSize, currentOrigin.y + headSize);
                         instance.mHeadSceneWindow.Area = new Rect(topLeft, bottomRight);
@@ -489,7 +581,6 @@ namespace Arro.PieMenuSearch
                 PieMenu.Hide();
                 eventArgs.Handled = true;
             }
-
             if (114345171U == eventArgs.TriggerCode && PieMenu.IsVisible)
             {
                 var pieMenu = (PieMenu)(this as object);
@@ -503,6 +594,12 @@ namespace Arro.PieMenuSearch
                         eventArgs.Handled = true;
                     }
                 }
+            }
+            if (114345172U == eventArgs.TriggerCode && PieMenu.IsVisible && searchTextEdit == null)
+            {
+                var pieMenu = (PieMenu)(this as object);
+                Simulator.AddObject(new OneShotFunctionTask(() => { ShowSearchDialog(pieMenu); },
+                    StopWatch.TickStyles.Seconds, 0.1f));
             }
         }
     }
