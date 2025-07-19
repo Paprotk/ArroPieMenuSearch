@@ -19,7 +19,7 @@ namespace Arro.PieMenuSearch
         [Tunable] private static bool AutoPause;
         #pragma warning restore CS0649
         private static Gameflow.GameSpeed sPrePieMenuSpeed = Gameflow.GameSpeed.Pause;
-        private static bool sSpeedChangedByPie = false;
+        private static bool sSpeedChangedByPie;
         public static class TinyUIFixForTS3Integration
         {
             public delegate float FloatGetter();
@@ -65,10 +65,10 @@ namespace Arro.PieMenuSearch
             mPieWindow = UIManager.GetMainWindow();
             if (AutoPause)
             {
-                if (!sSpeedChangedByPie && Sims3.UI.Responder.Instance.HudModel.CurrentGameSpeed != Gameflow.GameSpeed.Pause)
+                if (!sSpeedChangedByPie && Responder.Instance.HudModel.CurrentGameSpeed != Gameflow.GameSpeed.Pause)
                 {
-                    sPrePieMenuSpeed = Sims3.UI.Responder.Instance.HudModel.CurrentGameSpeed;
-                    Sims3.UI.Responder.Instance.HudModel.CurrentGameSpeed = Gameflow.GameSpeed.Pause;
+                    sPrePieMenuSpeed = Responder.Instance.HudModel.CurrentGameSpeed;
+                    Responder.Instance.HudModel.CurrentGameSpeed = Gameflow.GameSpeed.Pause;
                     sSpeedChangedByPie = true;
                 }
             }
@@ -112,9 +112,9 @@ namespace Arro.PieMenuSearch
             var instance = (PieMenu)(this as object);
             if (AutoPause && sSpeedChangedByPie)
             {
-                if (Sims3.UI.Responder.Instance.HudModel.CurrentGameSpeed == Gameflow.GameSpeed.Pause)
+                if (Responder.Instance.HudModel.CurrentGameSpeed == Gameflow.GameSpeed.Pause)
                 {
-                    Sims3.UI.Responder.Instance.HudModel.CurrentGameSpeed = sPrePieMenuSpeed;
+                    Responder.Instance.HudModel.CurrentGameSpeed = sPrePieMenuSpeed;
                 }
                 sSpeedChangedByPie = false;
             }
@@ -344,7 +344,7 @@ namespace Arro.PieMenuSearch
                 if (searchTextEdit != null)
                 {
                     Sims3.Gameplay.UI.PieMenu.ShowGreyedOutTooltip(
-                        Localization.LocalizeString("Gameplay/Abstracts/GameObject:NoInteractions", new object[0]),
+                        Localization.LocalizeString("Gameplay/Abstracts/GameObject:NoInteractions"),
                         UIManager.GetCursorPosition());
                     searchTextEdit.TextChange -= OnTextChange;
                     searchTextEdit.Caption = searchTextEdit.Caption.Substring(0, searchTextEdit.Caption.Length - 1);
