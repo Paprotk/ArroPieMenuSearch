@@ -16,7 +16,10 @@ namespace Arro.PieMenuSearch
     {
         #pragma warning disable CS0649
         [Tunable] private static int SearchType;
+        [Tunable] private static bool AutoPause;
         #pragma warning restore CS0649
+        private static Gameflow.GameSpeed sPrePieMenuSpeed = Gameflow.GameSpeed.Pause;
+        private static bool sSpeedChangedByPie = false;
         public static class TinyUIFixForTS3Integration
         {
             public delegate float FloatGetter();
@@ -60,6 +63,15 @@ namespace Arro.PieMenuSearch
         {
             var instance = (PieMenu)(this as object);
             mPieWindow = UIManager.GetMainWindow();
+            if (AutoPause)
+            {
+                if (!sSpeedChangedByPie && Sims3.UI.Responder.Instance.HudModel.CurrentGameSpeed != Gameflow.GameSpeed.Pause)
+                {
+                    sPrePieMenuSpeed = Sims3.UI.Responder.Instance.HudModel.CurrentGameSpeed;
+                    Sims3.UI.Responder.Instance.HudModel.CurrentGameSpeed = Gameflow.GameSpeed.Pause;
+                    sSpeedChangedByPie = true;
+                }
+            }
             if (SearchType == 1)
             {
                 searchTextEdit = mPieWindow.GetChildByID(185745581U, true) as TextEdit;
@@ -90,7 +102,6 @@ namespace Arro.PieMenuSearch
                 searchButton.Click += OnClickShowSearchDialog;
                 searchButton.Visible = true;
             }
-
             Audio.StartSound("ui_piemenu_primary");
             UIManager.PushModal(instance);
         }
@@ -99,6 +110,14 @@ namespace Arro.PieMenuSearch
         public void End()
         {
             var instance = (PieMenu)(this as object);
+            if (AutoPause && sSpeedChangedByPie)
+            {
+                if (Sims3.UI.Responder.Instance.HudModel.CurrentGameSpeed == Gameflow.GameSpeed.Pause)
+                {
+                    Sims3.UI.Responder.Instance.HudModel.CurrentGameSpeed = sPrePieMenuSpeed;
+                }
+                sSpeedChangedByPie = false;
+            }
             instance.mContainer.RemoveTriggerHook(instance.mTriggerHandle);
             if (searchTextEdit != null)
             {
@@ -430,7 +449,7 @@ namespace Arro.PieMenuSearch
 
             return clone;
         }
-
+        public bool PausedByMod = false;
         [ReplaceMethod(typeof(PieMenu), "SetupPieMenuButtons")]
         public void SetupPieMenuButtons(MenuItem menu, Vector2 origin, bool returnButtonVisible)
         {
